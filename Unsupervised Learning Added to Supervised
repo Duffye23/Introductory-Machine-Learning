@@ -1,0 +1,859 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[125]:
+
+
+import scipy
+import numpy as np
+import matplotlib as plt
+import sklearn
+from pandas import read_csv
+import matplotlib.pyplot as pyplt
+from pandas.plotting import scatter_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+print('The scikit-learn version is {}.'.format(sklearn.__version__))
+import os
+import graphviz
+from sklearn.neural_network import MLPClassifier
+from sklearn import metrics
+from pandas import DataFrame
+import pandas as pd
+from sklearn.datasets.samples_generator import make_blobs
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.svm import SVC
+from sklearn import preprocessing
+from sklearn import utils
+import seaborn as sns
+
+
+# In[126]:
+
+
+dia = read_csv(r'X:\SLC\Term 2\ADMN 5016\Evan_Duffy\Assignment 2\diabetes.csv')
+dia.info()
+
+
+# Our dataset has 0 nulls and all columns are able to be manipulated as they are all float and int types.
+
+# In[127]:
+
+
+dia.head(10)
+
+
+# In[128]:
+
+
+dia["Classification"].value_counts()
+
+
+# Evenly balanced, so overclassification is not needed.
+
+# In[129]:
+
+
+clustering_kmeans = KMeans(n_clusters=2, precompute_distances="auto", n_jobs=-1)
+dia['clusters'] = clustering_kmeans.fit_predict(dia)
+
+
+# Creating our clusters to run K Means.
+
+# ## Making sure the clustering worked
+
+# In[130]:
+
+
+dia.info()
+
+
+# In[131]:
+
+
+sns.scatterplot(x=dia["Classification"], y=dia["BMI"],hue=dia['clusters'], data=dia)
+pyplt.title('K-means Clustering')
+pyplt.show()
+
+
+# It is not feasible to represent more than one column at a time due to the nature of 2 dimensional plots. We need to reduce our features.
+
+# ## Run PCA
+# Done to reduce our graph so that we can see the effects of Kmeans clustering on a 2D plot
+
+# In[132]:
+
+
+pca_num_components = 2
+diabetes = PCA(n_components=pca_num_components).fit_transform(dia)
+finalDiabetes = pd.DataFrame(diabetes,columns=['pca1','pca2'])
+finalDiabetes.info()
+
+
+# In[133]:
+
+
+finalDiabetes.head()
+
+
+# In[134]:
+
+
+sns.scatterplot(x="pca1", y="pca2",hue=dia['clusters'], data=finalDiabetes)
+pyplt.title('K-means Clustering with 2 dimensions')
+pyplt.show()
+
+
+# Our data is mostly clustered as can be seen.
+
+# ## K Nearest Neighbour
+
+# In[135]:
+
+
+array = dia.values
+X = array[:,0:8]
+Y = array[:,9]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=3)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# Three PCAs are able to explain 77% of the variance in the dataset. A good amount.
+
+# In[136]:
+
+
+classifier = KNeighborsClassifier(n_neighbors=5)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Accuracy only 58% for our model, we will need to select a more optimal KNN
+
+# In[137]:
+
+
+error = []
+for i in range(1, 20):
+    knn = KNeighborsClassifier(n_neighbors=i)
+    knn.fit(X_train, Y_train)
+    pred_i = knn.predict(X_validation)
+    error.append(np.mean(pred_i != Y_validation))
+    #Looking for the optimal k value
+pyplt.figure(figsize=(12, 6))
+pyplt.plot(range(1, 20), error, color='red', linestyle='dashed', marker='o',
+         markerfacecolor='blue', markersize=10)
+pyplt.title('Error Rate K Value')
+pyplt.xlabel('K Value')
+pyplt.ylabel('Mean Error')
+pyplt.xticks(np.arange(1, 20, step=1))
+
+
+# In[138]:
+
+
+#using n_neighbors = 2
+classifier = KNeighborsClassifier(n_neighbors=2)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+#Printing new Confusion Matrix with optimal neighbors
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Accuracy improved to 68%, good improvement but still lacking. Could be that the dataset is not big enough to fit a model more accurately.
+
+# ## Decision Tree
+
+# In[139]:
+
+
+array = dia.values
+X = array[:,0:8]
+Y = array[:,9]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=3)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[140]:
+
+
+classifier = DecisionTreeClassifier()
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# In[141]:
+
+
+#Prunning via a cost complexity parameter
+clf = DecisionTreeClassifier(random_state=0)
+path = clf.cost_complexity_pruning_path(X_train, Y_train)
+ccp_alphas, impurities = path.ccp_alphas, path.impurities
+var = path
+print(var)
+
+
+# In[142]:
+
+
+fig, ax = pyplt.subplots()
+ax.plot(ccp_alphas[:-1], impurities[:-1], marker='o', drawstyle="steps-post")
+ax.set_xlabel("effective alpha")
+ax.set_ylabel("total impurity of leaves")
+ax.set_title("Total Impurity vs effective alpha for training set")
+
+
+# In[143]:
+
+
+clfs = []
+for ccp_alpha in ccp_alphas:
+    clf = DecisionTreeClassifier(random_state=0, ccp_alpha=ccp_alpha)
+    clf.fit(X_train, Y_train)
+    clfs.append(clf)
+print("Number of nodes in the last tree is: {} with ccp_alpha: {}".format(
+      clfs[-1].tree_.node_count, ccp_alphas[-1]))
+
+
+# In[144]:
+
+
+clfs = clfs[:-1]
+ccp_alphas = ccp_alphas[:-1]
+
+node_counts = [clf.tree_.node_count for clf in clfs]
+depth = [clf.tree_.max_depth for clf in clfs]
+fig, ax = pyplt.subplots(2, 1)
+ax[0].plot(ccp_alphas, node_counts, marker='o', drawstyle="steps-post")
+ax[0].set_xlabel("alpha")
+ax[0].set_ylabel("number of nodes")
+ax[0].set_title("Number of nodes vs alpha")
+ax[1].plot(ccp_alphas, depth, marker='o', drawstyle="steps-post")
+ax[1].set_xlabel("alpha")
+ax[1].set_ylabel("depth of tree")
+ax[1].set_title("Depth vs alpha")
+fig.tight_layout()
+
+
+# In[145]:
+
+
+train_scores = [clf.score(X_train, Y_train) for clf in clfs]
+test_scores = [clf.score(X_validation, Y_pred) for clf in clfs]
+
+fig, ax = pyplt.subplots()
+ax.set_xlabel("alpha")
+ax.set_ylabel("accuracy")
+ax.set_title("Accuracy vs alpha for training and testing sets")
+ax.plot(ccp_alphas, train_scores, marker='o', label="train",
+        drawstyle="steps-post")
+ax.plot(ccp_alphas, test_scores, marker='o', label="test",
+        drawstyle="steps-post")
+ax.legend()
+pyplt.xticks(np.arange(0, .1, step=0.01)) 
+pyplt.show()
+
+
+# The best alpha to run our prunined decision Tree at would be at alpha = .04
+
+# In[146]:
+
+
+classifier = DecisionTreeClassifier(ccp_alpha=0.04)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Same as above, less accurate than the cancer dataset that was used last assignment
+
+# In[147]:
+
+
+array = dia.values
+X = array[:,0:8]
+Y = array[:,9]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=3)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[148]:
+
+
+classifier = GaussianNB()
+classifier.fit(X_train, Y_train)
+
+
+# In[149]:
+
+
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Much the same as KNN, accuracy of less than 70%
+
+# ## SVM
+
+# In[150]:
+
+
+array = dia.values
+X = array[:,0:8]
+Y = array[:,9]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=3)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[151]:
+
+
+classifier = SVC(kernel='linear')
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# In[152]:
+
+
+array = dia.values
+X = array[:,0:8]
+Y = array[:,9]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=3)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+classifier = SVC(kernel='poly', degree=100, gamma='auto')
+classifier.fit(X_train, Y_train)
+
+
+# In[153]:
+
+
+classifier = SVC(kernel='poly', degree=100, gamma='auto')
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Interestingly, our accuracy falls from the linear model to polynomial. I assume this means that the dataset is more linear in nature.
+
+# ## Creating the Second Dataset
+# I decided to try my hand at creating a second dataset from scratch. Using make_blobs, I am creatign a dataset of 100 samples and two features. Simple but useful for my needs.
+
+# In[154]:
+
+
+X, _ = make_blobs(n_samples=100, centers=3, n_features=2, cluster_std=0.2, random_state = 1)
+#print (X)
+obj_names = []
+for i in range(0, 100):
+    obj = "Object " + str(i)
+    obj_names.append(obj)
+
+
+# In[155]:
+
+
+df = pd.DataFrame({
+    'Object': obj_names,
+    'X_value': X[:, 0],
+    'Y_value': X[:, -1]
+})
+print(df.head())
+
+
+# In[156]:
+
+
+# Initialize the centroids
+c1 = (-5, 4)
+c2 = (-0.2, 1.5)
+c3 = (2, 2.5)
+def calculate_distance(centroid, X, Y):
+    distances = []
+    c_x, c_y = centroid
+        
+    for x, y in list(zip(X, Y)):
+        root_diff_x = (x - c_x) ** 2
+        root_diff_y = (y - c_y) ** 2
+        distance = np.sqrt(root_diff_x + root_diff_y)
+        distances.append(distance)
+
+    return distances
+df['C1_Distance'] = calculate_distance(c1, df.X_value, df.Y_value)
+df['C2_Distance'] = calculate_distance(c2, df.X_value, df.Y_value)
+df['C3_Distance'] = calculate_distance(c3, df.X_value, df.Y_value)
+print(df.head())
+
+
+# In[157]:
+
+
+df['Cluster'] = df[['C1_Distance', 'C2_Distance', 'C3_Distance']].apply(np.argmin, axis=1)
+#df['Cluster'] = df['Cluster'].map({'C1_Distance': 'C1', 'C2_Distance': 'C2', 'C3_Distance': 'C3'})
+print(df.head())
+
+
+# Mapping the centroids returned NaN values and as such I decided to move forward without using the mapping feature. Further research seems to be that this feature is used in python 2.7 or earlier.
+# Further research is needed.
+
+# In[158]:
+
+
+df.info()
+
+
+# In[159]:
+
+
+# Calculate the coordinates of the new centroid from cluster 1
+x_new_centroid1 = df[df['Cluster']=='C1']['X_value'].mean()
+y_new_centroid1 = df[df['Cluster']=='C1']['Y_value'].mean()
+
+# Calculate the coordinates of the new centroid from cluster 2
+x_new_centroid2 = df[df['Cluster']=='C3']['X_value'].mean()
+y_new_centroid2 = df[df['Cluster']=='C3']['Y_value'].mean()
+
+
+# In[160]:
+
+
+# Print the coordinates of the new centroids
+print('Centroid 1 ({}, {})'.format(x_new_centroid1, y_new_centroid1))
+print('Centroid 2 ({}, {})'.format(x_new_centroid2, y_new_centroid2))
+
+
+# As dicussed above, the centroids return NaN, but with the way I am going forward, the Cluster column will still be able to be predicted as they are in integer form.
+
+# In[161]:
+
+
+# Specify the number of clusters (3) and fit the data X
+kmeans = KMeans(n_clusters=3, random_state=0).fit(X)
+
+# Get the cluster centroids
+print(kmeans.cluster_centers_)
+
+# Get the cluster labels
+print(kmeans.labels_)
+
+import matplotlib.pyplot as plt
+# Plotting the cluster centers and the data points on a 2D plane
+plt.scatter(X[:, 0], X[:, -1])
+
+plt.scatter(kmeans.cluster_centers_[:, 0],
+            kmeans.cluster_centers_[:, 1], c='red', marker='x')
+
+plt.title('Data points and cluster centroids')
+plt.show()
+
+
+# The dataset is clustered nicely around our 3 centroids.
+
+# ## PCA
+
+# In[162]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components = 2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# Only 2 PCA needed in this case as they are able to explain 100% of our data. This might be a feature of the make_blobs method, but this will bring up interesting analysis later on.
+
+# ## KMeans After PCA
+
+# In[163]:
+
+
+# Specify the number of clusters (3) and fit the data X
+kmeans = KMeans(n_clusters=3, random_state=0).fit(X)
+
+# Get the cluster centroids
+print(kmeans.cluster_centers_)
+
+# Get the cluster labels
+print(kmeans.labels_)
+
+import matplotlib.pyplot as plt
+# Plotting the cluster centers and the data points on a 2D plane
+plt.scatter(X[:, 0], X[:, -1])
+
+plt.scatter(kmeans.cluster_centers_[:, 0],
+            kmeans.cluster_centers_[:, 1], c='red', marker='x')
+
+plt.title('Data points and cluster centroids')
+plt.show()
+
+
+# Our PCA components are nowhere near our previously created centroids.
+
+# ## K Nearest Neighbour
+
+# In[164]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+Y = Y.astype("int")
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components = 2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[165]:
+
+
+classifier = KNeighborsClassifier(n_neighbors=3)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# In[166]:
+
+
+error = []
+for i in range(1, 40):
+    knn = KNeighborsClassifier(n_neighbors=i)
+    knn.fit(X_train, Y_train)
+    pred_i = knn.predict(X_validation)
+    error.append(np.mean(pred_i != Y_validation))
+    #Looking for the optimal k value
+pyplt.figure(figsize=(12, 6))
+pyplt.plot(range(1, 40), error, color='red', linestyle='dashed', marker='o',
+         markerfacecolor='blue', markersize=10)
+pyplt.title('Error Rate K Value')
+pyplt.xlabel('K Value')
+pyplt.ylabel('Mean Error')
+pyplt.xticks(np.arange(1, 40, step=1))
+
+
+# Optimal n happens at 1, 3 or 5, I decide to use n = 3 here
+
+# In[167]:
+
+
+#using n_neighbors = 3
+classifier = KNeighborsClassifier(n_neighbors=3)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+#Printing new Confusion Matrix with optimal neighbors
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Algorithms are much more accurate on this dataset. But there is no imporvement when proceeding with an optimal n_neighbours
+
+# ## Decision Tree
+
+# In[168]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+Y = Y.astype("int")
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[169]:
+
+
+classifier = DecisionTreeClassifier()
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# In[170]:
+
+
+#Prunning via a cost complexity parameter
+clf = DecisionTreeClassifier(random_state=0)
+path = clf.cost_complexity_pruning_path(X_train, Y_train)
+ccp_alphas, impurities = path.ccp_alphas, path.impurities
+var = path
+print(var)
+
+
+# In[171]:
+
+
+fig, ax = pyplt.subplots()
+ax.plot(ccp_alphas[:-1], impurities[:-1], marker='o', drawstyle="steps-post")
+ax.set_xlabel("effective alpha")
+ax.set_ylabel("total impurity of leaves")
+ax.set_title("Total Impurity vs effective alpha for training set")
+
+
+# In[172]:
+
+
+clfs = []
+for ccp_alpha in ccp_alphas:
+    clf = DecisionTreeClassifier(random_state=0, ccp_alpha=ccp_alpha)
+    clf.fit(X_train, Y_train)
+    clfs.append(clf)
+print("Number of nodes in the last tree is: {} with ccp_alpha: {}".format(
+      clfs[-1].tree_.node_count, ccp_alphas[-1]))
+
+
+# In[173]:
+
+
+clfs = clfs[:-1]
+ccp_alphas = ccp_alphas[:-1]
+
+node_counts = [clf.tree_.node_count for clf in clfs]
+depth = [clf.tree_.max_depth for clf in clfs]
+fig, ax = pyplt.subplots(2, 1)
+ax[0].plot(ccp_alphas, node_counts, marker='o', drawstyle="steps-post")
+ax[0].set_xlabel("alpha")
+ax[0].set_ylabel("number of nodes")
+ax[0].set_title("Number of nodes vs alpha")
+ax[1].plot(ccp_alphas, depth, marker='o', drawstyle="steps-post")
+ax[1].set_xlabel("alpha")
+ax[1].set_ylabel("depth of tree")
+ax[1].set_title("Depth vs alpha")
+fig.tight_layout()
+
+
+# In[174]:
+
+
+train_scores = [clf.score(X_train, Y_train) for clf in clfs]
+test_scores = [clf.score(X_validation, Y_pred) for clf in clfs]
+
+fig, ax = pyplt.subplots()
+ax.set_xlabel("alpha")
+ax.set_ylabel("accuracy")
+ax.set_title("Accuracy vs alpha for training and testing sets")
+ax.plot(ccp_alphas, train_scores, marker='o', label="train",
+        drawstyle="steps-post")
+ax.plot(ccp_alphas, test_scores, marker='o', label="test",
+        drawstyle="steps-post")
+ax.legend()
+pyplt.xticks(np.arange(0, .1, step=0.01)) 
+pyplt.show()
+
+
+# Alpha at 0 seems to be the ideal state. Could imply over fitting?
+
+# In[175]:
+
+
+classifier = DecisionTreeClassifier(ccp_alpha=0.00)
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# Interestingly, our optimal alpha is at 0, meaning that the model is as precise as it will be. The depth of the model confirms that it is only 1 level as well. No movement in the data as alpha is determined is interesting as well.
+
+# ## Naive Bayes
+
+# In[176]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+Y = Y.astype("int")
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[177]:
+
+
+classifier = GaussianNB()
+classifier.fit(X_train, Y_train)
+
+
+# In[178]:
+
+
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# ## SVM
+
+# In[179]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+Y = Y.astype("int")
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+
+
+# In[180]:
+
+
+classifier = SVC(kernel='linear')
+classifier.fit(X_train, Y_train)
+Y_pred = classifier.predict(X_validation)
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# In[181]:
+
+
+array = df.values
+X = array[:,1:5]
+Y = array[:,6]
+Y = Y.astype("int")
+X_train, X_validation, Y_train, Y_validation = train_test_split(X, Y, test_size=0.60, random_state=1)
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_validation = sc.transform(X_validation)
+pca = PCA(n_components=2)
+X_train = pca.fit_transform(X_train)
+X_validation = pca.transform(X_validation)
+
+explained_variance = pca.explained_variance_ratio_
+print(explained_variance)
+classifier = SVC(kernel='poly', degree=100, gamma='auto')
+classifier.fit(X_train, Y_train)
+
+print('--------------- SVM  kernel=poly , degree=8 : classifier.fit [Done]')
+Y_pred = classifier.predict(X_validation)
+
+print('--------------- SVM  kernel=poly , degree=8 : classifier.predict [Done]')
+
+from sklearn.metrics import classification_report, confusion_matrix
+print(confusion_matrix(Y_validation,Y_pred))
+print(classification_report(Y_validation,Y_pred))
+print('Accuracy' , accuracy_score(Y_validation, Y_pred))
+
+
+# ## Analysis
+
+# The diabetes dataset was used as it the subject is close to my heart. My family has a predisposition to the type 1 of the disease and I find it fascinating to look into. Being able to maybe see the
+# the telltale signs that may cause the disease is also interesting. Unfortunately, the data was not kind with the methods we have learned, though I am certain it will be able to be looked into with
+# greater detail at a later date. Or perhaps a more robust dataset might be used in the future. The second dataset was manually created via the method make_blobs and served more as a learning tool
+# than anything of interest. Though it ultimately did not work as intended, it was exciting that the methods discussed in class were useful and greatly imporved my knowledge, as well as generated
+# some question that I am keen to answer.
+
+# The methods of creating Kmeans clusters, as well as PCAs, where the ones discussed in class for the most part. Although with diabetes a simpler classification that still produced 2 clusters for our data.
+# The supervized learnings were the same used in the previous classes and assignments and were interesting in their right. The low accuracy yielded by the diabetes dataset are what I would assume real world
+# data would yield, and the make_blobs data would indicate a more tailored dataset. As such, the clusters are certainly uniform in the first dataset, but more clumped together in the second set. In the first
+# set the clusters are actually mixed, with the classifications intermingled. But once PCA is run to reduce dimensionality, the classifications split. In the second set, there was no hue to observe, but the data 
+# is clustered between the centroids that where created. Though it is interesting to note that PCA run on the second set causes the localization of the clusters to actually migrate from the centroids. I believe 
+# that is because they were not mapped, as explained before I could not without creating a worhtless column of NaN data.
