@@ -5,3 +5,5 @@ and complexity. This report will break down the comparison first by giving some 
 then we will discuss each individual model’s performance on each dataset. Finally, we will summarize a comparison between the models on 
 each dataset. In this way, we hope to test the ‘no free lunch’ theorem, which stipulates that no one model will be the best selection 
 for every dataset. 
+
+Contributing Authors: emmusic(XGBoost), Melo Maps(SVM), Ramatuay(Deep Learning), Duffye23(Random Forest).
